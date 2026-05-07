@@ -33,6 +33,18 @@ export default function DraggablePinMap({ blocks, center, marker, onMarkerChange
         )
       )
     ).addTo(map);
+
+    const boundsPoints = (nextBlocks || [])
+      .flat()
+      .map((point) => [point.lat, point.lng]);
+
+    if (boundsPoints.length) {
+      boundsPoints.push(markerRef.current?.getLatLng() || [map.getCenter().lat, map.getCenter().lng]);
+      map.fitBounds(L.latLngBounds(boundsPoints), {
+        maxZoom: 17,
+        padding: [30, 30],
+      });
+    }
   };
 
   useEffect(() => {
@@ -101,7 +113,6 @@ export default function DraggablePinMap({ blocks, center, marker, onMarkerChange
     if (!mapRef.current || !markerRef.current || !marker) return;
 
     markerRef.current.setLatLng([marker.lat, marker.lng]);
-    mapRef.current.setView([marker.lat, marker.lng], mapRef.current.getZoom());
     setTimeout(() => mapRef.current?.invalidateSize(), 0);
   }, [marker]);
 

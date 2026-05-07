@@ -254,8 +254,22 @@ export default function Home() {
           </select>
         </div>
 
-        <button className="btn" onClick={generatePin} disabled={loadingPin}>
-          {loadingPin ? "Finding Pin..." : confirmedPin ? "Refresh Pin" : "Generate Pin"}
+        <button
+          className="btn"
+          onClick={confirmedPin ? generateMaps : generatePin}
+          disabled={
+            loadingPin ||
+            loadingMaps ||
+            (Boolean(confirmedPin) && highlightedBlocks.length < blockCount)
+          }
+        >
+          {loadingPin
+            ? "Finding Pin..."
+            : loadingMaps
+              ? "Generating Map..."
+              : confirmedPin
+                ? "Confirm Pin & Generate Map"
+                : "Generate Pin"}
         </button>
 
       </div>
@@ -285,7 +299,7 @@ export default function Home() {
             onClick={generateMaps}
             disabled={loadingMaps || highlightedBlocks.length < blockCount}
           >
-            {loadingMaps ? "Generating PDF..." : "Confirm Pin & Generate PDF"}
+            {loadingMaps ? "Generating Map..." : "Confirm Pin & Generate Map"}
           </button>
 
           {maps && (

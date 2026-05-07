@@ -148,6 +148,16 @@ function appendHighlightedBlocks(url, location) {
   });
 }
 
+function appendVisibleBounds(url, location) {
+  url.searchParams.append("visible", `${location.lat},${location.lng}`);
+
+  location.blocks.forEach((block) => {
+    block.forEach((point) => {
+      url.searchParams.append("visible", `${point.lat},${point.lng}`);
+    });
+  });
+}
+
 export async function POST(req) {
   try {
     const {
@@ -200,8 +210,6 @@ export async function POST(req) {
       const url = new URL(base);
 
       url.search = new URLSearchParams({
-        center: `${location.lat},${location.lng}`,
-        zoom: "17",
         size: "600x600",
         maptype: "roadmap",
         format: "png",
@@ -209,6 +217,7 @@ export async function POST(req) {
         key,
       }).toString();
       appendHighlightedBlocks(url, { ...location, blocks });
+      appendVisibleBounds(url, { ...location, blocks });
 
       const map = await fetchAsBase64(url);
       maps.push(map);
