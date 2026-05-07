@@ -48,12 +48,22 @@ export default function PDFPreview({ maps }) {
   if (!pdfUrl) return <div className="preview-status">Preparing PDF...</div>;
 
   return (
-    <iframe
-      title="Soul Winning Map PDF Preview"
-      src={pdfUrl}
-      width="100%"
-      height="500"
-      className="pdf-frame"
-    />
+    <>
+      <div className="pdf-actions">
+        <a className="pdf-action" href={pdfUrl} target="_blank" rel="noreferrer">
+          Open PDF
+        </a>
+        <a className="pdf-action" href={pdfUrl} download="soul-winning-map.pdf">
+          Download PDF
+        </a>
+      </div>
+      <iframe
+        title="Soul Winning Map PDF Preview"
+        src={pdfUrl}
+        width="100%"
+        height="500"
+        className="pdf-frame"
+      />
+    </>
   );
 }

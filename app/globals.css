@@ -16,25 +16,7 @@ body {
 .container {
   max-width: 720px;
   margin: 0 auto;
-  padding: 60px 20px;
-}
-
-/* ========== HERO ========== */
-.hero {
-  text-align: center;
-  margin-bottom: 40px;
-}
-
-.hero h1 {
-  font-size: 32px;
-  font-weight: 600;
-  letter-spacing: -0.02em;
-  margin-bottom: 8px;
-}
-
-.hero p {
-  font-size: 15px;
-  color: #6b7280;
+  padding: 32px 20px;
 }
 
 /* ========== CARD ========== */
@@ -64,7 +46,7 @@ select {
   padding: 10px 12px;
   border-radius: 8px;
   border: 1px solid #d1d5db;
-  font-size: 14px;
+  font-size: 16px;
   background: #fff;
   transition: border 0.2s ease, box-shadow 0.2s ease;
 }
@@ -79,7 +61,7 @@ select:focus {
   padding: 10px 12px;
   border-radius: 8px;
   border: 1px solid #d1d5db;
-  font-size: 14px;
+  font-size: 16px;
   transition: border 0.2s ease, box-shadow 0.2s ease;
 }
 
@@ -129,6 +111,28 @@ select:focus {
   background: #fff;
 }
 
+.pdf-actions {
+  display: flex;
+  gap: 10px;
+  padding: 12px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.pdf-action {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 42px;
+  padding: 10px 14px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  color: #111;
+  font-size: 14px;
+  font-weight: 500;
+  text-decoration: none;
+}
+
 .preview-status {
   display: grid;
   place-items: center;
@@ -140,15 +144,34 @@ select:focus {
 .pdf-frame {
   display: block;
   border: 0;
+  height: min(70vh, 640px);
 }
 
 /* ========== RESPONSIVE ========== */
 @media (max-width: 600px) {
   .container {
-    padding: 40px 16px;
+    padding: 16px;
   }
 
-  .hero h1 {
-    font-size: 26px;
+  .card {
+    padding: 18px;
+    border-radius: 10px;
+  }
+
+  .preview {
+    margin-top: 24px;
+  }
+
+  .preview-box {
+    border-radius: 10px;
+  }
+
+  .pdf-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .pdf-frame {
+    display: none;
   }
 }

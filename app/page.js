@@ -51,11 +51,6 @@ export default function Home() {
   return (
     <div className="container">
 
-      <div className="hero">
-        <h1>Soul Winning Map Generator</h1>
-        <p>Generate printable canvassing maps for your outreach teams</p>
-      </div>
-
       <div className="card">
 
         <div className="field">
@@ -76,12 +71,12 @@ export default function Home() {
         <div className="field">
           <label>Street</label>
           <input
-  type="text"
-  placeholder="Enter street (e.g. Mission St)"
-  value={street}
-  onChange={(e) => setStreet(e.target.value)}
-  className="input"
-/>
+            type="text"
+            placeholder="Enter street (e.g. Mission St)"
+            value={street}
+            onChange={(e) => setStreet(e.target.value)}
+            className="input"
+          />
         </div>
 
         <div className="field">
