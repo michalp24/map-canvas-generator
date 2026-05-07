@@ -190,6 +190,13 @@ select:focus {
   vector-effect: non-scaling-stroke;
 }
 
+.block-warning {
+  margin-top: 12px;
+  color: #92400e;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
 .confirm-btn {
   margin-top: 14px;
 }

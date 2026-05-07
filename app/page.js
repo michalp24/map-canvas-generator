@@ -35,6 +35,8 @@ export default function Home() {
   const [pinSeed, setPinSeed] = useState(null);
   const [mapCenter, setMapCenter] = useState(null);
   const [confirmedPin, setConfirmedPin] = useState(null);
+  const [highlightedBlocks, setHighlightedBlocks] = useState([]);
+  const [blockWarning, setBlockWarning] = useState("");
   const [maps, setMaps] = useState(null);
   const [loadingPin, setLoadingPin] = useState(false);
   const [loadingMaps, setLoadingMaps] = useState(false);
@@ -62,13 +64,45 @@ export default function Home() {
     setPinSeed(null);
     setMapCenter(null);
     setConfirmedPin(null);
+    setHighlightedBlocks([]);
+    setBlockWarning("");
     setMaps(null);
   };
 
-  const handleMarkerChange = useCallback((nextPin) => {
+  const handleMarkerChange = useCallback(async (nextPin) => {
     setConfirmedPin(nextPin);
     setMaps(null);
-  }, []);
+    setBlockWarning("");
+
+    try {
+      const res = await axios.post("/api/map", {
+        street,
+        city,
+        count: 1,
+        refreshToken: pinSeed || Date.now(),
+        previewOnly: true,
+        confirmedPin: nextPin,
+      });
+
+      setHighlightedBlocks(res.data.blocks || []);
+
+      if ((res.data.blocks || []).length < 4) {
+        setBlockWarning("Move the pin near a more complete street grid to identify 4 road-bound blocks.");
+      }
+    } catch (err) {
+      setHighlightedBlocks([]);
+      setBlockWarning("Could not identify road-bound blocks at this pin.");
+    }
+  }, [city, pinSeed, street]);
+
+  const applyBlockResult = (blocks) => {
+    setHighlightedBlocks(blocks || []);
+    setBlockWarning(
+      (blocks || []).length >= 4
+        ? ""
+        : "Could not identify 4 road-bound blocks near this pin. Try another nearby pin."
+    );
+  };
 
   const generatePin = async () => {
     if (!street) return alert("Select a street");
@@ -87,6 +121,7 @@ export default function Home() {
       setPinSeed(refreshToken);
       setMapCenter(res.data.center);
       setConfirmedPin(res.data.pin);
+      applyBlockResult(res.data.blocks);
       setMaps(null);
     } catch (err) {
       alert("Failed to generate pin");
@@ -96,6 +131,9 @@ export default function Home() {
 
   const generateMaps = async () => {
     if (!pinSeed || !confirmedPin) return alert("Generate and confirm a pin first");
+    if (highlightedBlocks.length < 4) {
+      return alert("Move the pin until 4 road-bound blocks are highlighted first");
+    }
 
     setLoadingMaps(true);
     try {
@@ -106,6 +144,7 @@ export default function Home() {
         refreshToken: pinSeed,
         confirmedPin,
       });
+      applyBlockResult(res.data.blocks);
       setMaps(res.data.maps);
     } catch (err) {
       alert("Failed to generate maps");
@@ -180,13 +219,20 @@ export default function Home() {
 
           <div className="map-preview-box">
             <DraggablePinMap
+              blocks={highlightedBlocks}
               center={mapCenter}
               marker={confirmedPin}
               onMarkerChange={handleMarkerChange}
             />
           </div>
 
-          <button className="btn confirm-btn" onClick={generateMaps} disabled={loadingMaps}>
+          {blockWarning && <p className="block-warning">{blockWarning}</p>}
+
+          <button
+            className="btn confirm-btn"
+            onClick={generateMaps}
+            disabled={loadingMaps || highlightedBlocks.length < 4}
+          >
             {loadingMaps ? "Generating PDF..." : "Confirm Pin & Generate PDF"}
           </button>
 

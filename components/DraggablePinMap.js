@@ -2,57 +2,35 @@
 
 import { useEffect, useRef } from "react";
 
-function getHighlightedBlocks({ lat, lng }) {
-  const blockLat = 0.00072;
-  const blockLng = 0.0009;
-  const gap = 0.0001;
-
-  return [
-    [
-      [lat + gap, lng - gap - blockLng],
-      [lat + gap + blockLat, lng - gap],
-    ],
-    [
-      [lat + gap, lng + gap],
-      [lat + gap + blockLat, lng + gap + blockLng],
-    ],
-    [
-      [lat - gap - blockLat, lng - gap - blockLng],
-      [lat - gap, lng - gap],
-    ],
-    [
-      [lat - gap - blockLat, lng + gap],
-      [lat - gap, lng + gap + blockLng],
-    ],
-  ];
-}
-
-export default function DraggablePinMap({ center, marker, onMarkerChange }) {
+export default function DraggablePinMap({ blocks, center, marker, onMarkerChange }) {
   const containerRef = useRef(null);
   const leafletRef = useRef(null);
   const mapRef = useRef(null);
   const markerRef = useRef(null);
   const blockLayerRef = useRef(null);
 
-  const drawHighlightedBlocks = (pin) => {
+  const drawHighlightedBlocks = (nextBlocks) => {
     const L = leafletRef.current;
     const map = mapRef.current;
-    if (!L || !map || !pin) return;
+    if (!L || !map) return;
 
     if (blockLayerRef.current) {
       blockLayerRef.current.remove();
     }
 
     blockLayerRef.current = L.layerGroup(
-      getHighlightedBlocks(pin).map((bounds) =>
-        L.rectangle(bounds, {
+      (nextBlocks || []).map((block) =>
+        L.polygon(
+          block.map((point) => [point.lat, point.lng]),
+          {
           className: "canvassing-block",
           color: "#2563eb",
           fillColor: "#2563eb",
           fillOpacity: 0.18,
           opacity: 0.85,
           weight: 2,
-        })
+          }
+        )
       )
     ).addTo(map);
   };
@@ -78,7 +56,7 @@ export default function DraggablePinMap({ center, marker, onMarkerChange }) {
           '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
       }).addTo(map);
       mapRef.current = map;
-      drawHighlightedBlocks(marker);
+      drawHighlightedBlocks(blocks);
 
       const pinIcon = L.divIcon({
         className: "pin-marker",
@@ -117,10 +95,13 @@ export default function DraggablePinMap({ center, marker, onMarkerChange }) {
   }, [center, onMarkerChange]);
 
   useEffect(() => {
+    drawHighlightedBlocks(blocks);
+  }, [blocks]);
+
+  useEffect(() => {
     if (!mapRef.current || !markerRef.current || !marker) return;
 
     markerRef.current.setLatLng([marker.lat, marker.lng]);
-    drawHighlightedBlocks(marker);
     mapRef.current.setView([marker.lat, marker.lng], mapRef.current.getZoom());
     setTimeout(() => mapRef.current?.invalidateSize(), 0);
   }, [marker]);

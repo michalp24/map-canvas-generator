@@ -1,4 +1,7 @@
 import { NextResponse } from "next/server";
+import * as turf from "@turf/turf";
+
+const FALLBACK_BLOCKS = [];
 
 async function fetchAsBase64(url) {
   const res = await fetch(url);
@@ -53,52 +56,93 @@ function getPinLocation(lat, lng, index, random) {
   };
 }
 
-function getHighlightedBlocks({ lat, lng }) {
-  const blockLat = 0.00072;
-  const blockLng = 0.0009;
-  const gap = 0.0001;
+async function fetchNearbyRoads({ lat, lng }) {
+  const radius = 0.006;
+  const bbox = {
+    south: lat - radius,
+    west: lng - radius,
+    north: lat + radius,
+    east: lng + radius,
+  };
+  const query = `
+    [out:json][timeout:10];
+    (
+      way["highway"~"^(primary|secondary|tertiary|unclassified|residential|living_street)$"](${bbox.south},${bbox.west},${bbox.north},${bbox.east});
+    );
+    out geom;
+  `;
 
-  return [
-    {
-      north: lat + gap + blockLat,
-      south: lat + gap,
-      west: lng - gap - blockLng,
-      east: lng - gap,
+  const res = await fetch("https://overpass-api.de/api/interpreter", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+      "User-Agent": "soul-winning-map/1.0",
     },
-    {
-      north: lat + gap + blockLat,
-      south: lat + gap,
-      west: lng + gap,
-      east: lng + gap + blockLng,
-    },
-    {
-      north: lat - gap,
-      south: lat - gap - blockLat,
-      west: lng - gap - blockLng,
-      east: lng - gap,
-    },
-    {
-      north: lat - gap,
-      south: lat - gap - blockLat,
-      west: lng + gap,
-      east: lng + gap + blockLng,
-    },
-  ];
+    body: new URLSearchParams({ data: query }).toString(),
+  });
+
+  if (!res.ok) {
+    throw new Error(`Overpass failed with status ${res.status}`);
+  }
+
+  const data = await res.json();
+
+  return data.elements
+    .filter((element) => element.type === "way" && element.geometry?.length > 1)
+    .map((way) =>
+      turf.lineString(
+        way.geometry.map((point) => [point.lon, point.lat]),
+        { id: way.id, name: way.tags?.name || "" }
+      )
+    );
+}
+
+async function getHighlightedBlocks(location) {
+  try {
+    const roads = await fetchNearbyRoads(location);
+    if (roads.length < 8) return FALLBACK_BLOCKS;
+
+    const lines = turf.featureCollection(roads);
+    const polygons = turf.polygonize(lines);
+    const pin = turf.point([location.lng, location.lat]);
+
+    return polygons.features
+      .map((polygon) => {
+        const area = turf.area(polygon);
+        const centroid = turf.centroid(polygon);
+        const distance = turf.distance(pin, centroid, { units: "meters" });
+
+        return {
+          area,
+          distance,
+          coordinates: polygon.geometry.coordinates[0].map(([lng, lat]) => ({
+            lat,
+            lng,
+          })),
+        };
+      })
+      .filter((block) => block.area > 1200 && block.area < 90000)
+      .sort((a, b) => a.distance - b.distance)
+      .slice(0, 4)
+      .map((block) => block.coordinates);
+  } catch (err) {
+    console.error("Block detection failed:", err);
+    return FALLBACK_BLOCKS;
+  }
 }
 
 function appendHighlightedBlocks(url, location) {
-  getHighlightedBlocks(location).forEach((block) => {
+  location.blocks.forEach((block) => {
+    if (block.length < 3) return;
+
     url.searchParams.append(
       "path",
       [
         "fillcolor:0x2563EB33",
         "color:0x2563EBCC",
         "weight:2",
-        `${block.north},${block.west}`,
-        `${block.north},${block.east}`,
-        `${block.south},${block.east}`,
-        `${block.south},${block.west}`,
-        `${block.north},${block.west}`,
+        ...block.map((point) => `${point.lat},${point.lng}`),
+        `${block[0].lat},${block[0].lng}`,
       ].join("|")
     );
   });
@@ -126,10 +170,17 @@ export async function POST(req) {
     const initialPin = confirmedPin || getPinLocation(geocoded.lat, geocoded.lng, 0, random);
     const mapCount = previewOnly ? 1 : count;
     const maps = [];
+    const initialBlocks = await getHighlightedBlocks(initialPin);
 
     for (let i = 0; i < mapCount; i++) {
       const location =
         i === 0 ? initialPin : getPinLocation(initialPin.lat, initialPin.lng, i, random);
+      const blocks = i === 0 ? initialBlocks : await getHighlightedBlocks(location);
+
+      if (!previewOnly && blocks.length < 4) {
+        throw new Error("Could not identify 4 road-bound blocks near this pin");
+      }
+
       const url = new URL(base);
 
       url.search = new URLSearchParams({
@@ -141,7 +192,7 @@ export async function POST(req) {
         markers: `color:red|${location.lat},${location.lng}`,
         key,
       }).toString();
-      appendHighlightedBlocks(url, location);
+      appendHighlightedBlocks(url, { ...location, blocks });
 
       const map = await fetchAsBase64(url);
       maps.push(map);
@@ -152,7 +203,7 @@ export async function POST(req) {
       previewMap: maps[0],
       center: geocoded,
       pin: initialPin,
-      blocks: getHighlightedBlocks(initialPin),
+      blocks: initialBlocks,
     });
   } catch (err) {
     console.error("SERVER ERROR:", err);
