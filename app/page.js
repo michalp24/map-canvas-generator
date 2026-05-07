@@ -40,6 +40,7 @@ export default function Home() {
         street,
         city,
         count,
+        refreshToken: Date.now(),
       });
       setMaps(res.data.maps);
     } catch (err) {
@@ -99,7 +100,18 @@ export default function Home() {
 
       {maps && (
         <div className="preview">
-          <h2>Preview</h2>
+          <div className="map-preview-header">
+            <h2>Map Preview</h2>
+            <button className="btn-secondary" onClick={generate} disabled={loading}>
+              {loading ? "Refreshing..." : "Refresh Pin"}
+            </button>
+          </div>
+
+          <div className="map-preview-box">
+            <img src={maps[0]} alt="Generated canvassing map preview" />
+          </div>
+
+          <h2 className="pdf-preview-title">PDF Preview</h2>
 
           <div className="preview-box">
             <PDFPreview maps={maps} />

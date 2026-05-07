@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 
-// convert image → base64
 async function fetchAsBase64(url) {
   const res = await fetch(url);
   const contentType = res.headers.get("content-type");
@@ -15,11 +14,12 @@ async function fetchAsBase64(url) {
   return `data:image/png;base64,${Buffer.from(buffer).toString("base64")}`;
 }
 
-// get lat/lng from address
 async function geocode(address, key) {
-  const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(
-    address
-  )}&key=${key}`;
+  const url = new URL("https://maps.googleapis.com/maps/api/geocode/json");
+  url.search = new URLSearchParams({
+    address,
+    key,
+  }).toString();
 
   const res = await fetch(url);
   const data = await res.json();
@@ -31,38 +31,55 @@ async function geocode(address, key) {
   return data.results[0].geometry.location;
 }
 
+function seededRandom(seed) {
+  let value = seed % 2147483647;
+  if (value <= 0) value += 2147483646;
+
+  return () => {
+    value = (value * 16807) % 2147483647;
+    return (value - 1) / 2147483646;
+  };
+}
+
+function getPinLocation(lat, lng, index, random) {
+  const step = 0.0025;
+  const ring = Math.floor(index / 2) + 1;
+  const angle = random() * Math.PI * 2 + index * 2.399963229728653;
+  const radius = step * (0.55 + ring * 0.35 + random() * 0.2);
+
+  return {
+    lat: lat + Math.cos(angle) * radius,
+    lng: lng + Math.sin(angle) * radius,
+  };
+}
+
 export async function POST(req) {
   try {
-    const { street, city, count } = await req.json();
+    const { street, city, count, refreshToken } = await req.json();
 
     const key = process.env.GOOGLE_MAPS_API_KEY;
+    if (!key) throw new Error("Missing Google Maps API key");
+
     const base = "https://maps.googleapis.com/maps/api/staticmap";
 
     const address = `${street}, ${city}`;
-
-    // 🔑 get base coordinate
     const { lat, lng } = await geocode(address, key);
-
+    const random = seededRandom(Number(refreshToken) || Date.now());
     const maps = [];
 
-    // spacing between maps (controls how different they look)
-    const step = 0.0025;
-
     for (let i = 0; i < count; i++) {
-      // distribute in grid pattern
-      const row = Math.floor(i / 2);
-      const col = i % 2 === 0 ? -1 : 1;
+      const location = getPinLocation(lat, lng, i, random);
+      const url = new URL(base);
 
-      const newLat = lat + row * step;
-      const newLng = lng + col * step;
-
-      const url = `${base}?center=${newLat},${newLng}
-&zoom=17
-&size=600x600
-&maptype=roadmap
-&format=png
-&markers=color:red|${newLat},${newLng}
-&key=${key}`;
+      url.search = new URLSearchParams({
+        center: `${location.lat},${location.lng}`,
+        zoom: "17",
+        size: "600x600",
+        maptype: "roadmap",
+        format: "png",
+        markers: `color:red|${location.lat},${location.lng}`,
+        key,
+      }).toString();
 
       const map = await fetchAsBase64(url);
       maps.push(map);
