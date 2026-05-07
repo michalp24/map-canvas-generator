@@ -294,14 +294,6 @@ export default function Home() {
 
           {blockWarning && <p className="block-warning">{blockWarning}</p>}
 
-          <button
-            className="btn confirm-btn"
-            onClick={generateMaps}
-            disabled={loadingMaps || highlightedBlocks.length < blockCount}
-          >
-            {loadingMaps ? "Generating Map..." : "Confirm Pin & Generate Map"}
-          </button>
-
           {maps && (
             <>
               <h2 className="pdf-preview-title">PDF Preview</h2>
