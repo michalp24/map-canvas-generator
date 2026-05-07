@@ -55,7 +55,14 @@ function getPinLocation(lat, lng, index, random) {
 
 export async function POST(req) {
   try {
-    const { street, city, count, refreshToken, previewOnly } = await req.json();
+    const {
+      street,
+      city,
+      count,
+      refreshToken,
+      previewOnly,
+      confirmedPin,
+    } = await req.json();
 
     const key = process.env.GOOGLE_MAPS_API_KEY;
     if (!key) throw new Error("Missing Google Maps API key");
@@ -63,13 +70,15 @@ export async function POST(req) {
     const base = "https://maps.googleapis.com/maps/api/staticmap";
 
     const address = `${street}, ${city}`;
-    const { lat, lng } = await geocode(address, key);
+    const geocoded = await geocode(address, key);
     const random = seededRandom(Number(refreshToken) || Date.now());
+    const initialPin = confirmedPin || getPinLocation(geocoded.lat, geocoded.lng, 0, random);
     const mapCount = previewOnly ? 1 : count;
     const maps = [];
 
     for (let i = 0; i < mapCount; i++) {
-      const location = getPinLocation(lat, lng, i, random);
+      const location =
+        i === 0 ? initialPin : getPinLocation(initialPin.lat, initialPin.lng, i, random);
       const url = new URL(base);
 
       url.search = new URLSearchParams({
@@ -89,6 +98,8 @@ export async function POST(req) {
     return NextResponse.json({
       maps,
       previewMap: maps[0],
+      center: geocoded,
+      pin: initialPin,
     });
   } catch (err) {
     console.error("SERVER ERROR:", err);

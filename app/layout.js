@@ -1,3 +1,5 @@
+import "leaflet/dist/leaflet.css";
+
 export const metadata = {
   title: "Soul Winning Map Generator",
   description: "Generate canvassing maps",

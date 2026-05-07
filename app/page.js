@@ -1,11 +1,15 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import axios from "axios";
 import "./globals.css";
 
 const PDFPreview = dynamic(() => import("../components/PDFPreview"), {
+  ssr: false,
+});
+
+const DraggablePinMap = dynamic(() => import("../components/DraggablePinMap"), {
   ssr: false,
 });
 
@@ -29,7 +33,8 @@ export default function Home() {
   const [street, setStreet] = useState("");
   const [count, setCount] = useState(2);
   const [pinSeed, setPinSeed] = useState(null);
-  const [pinPreview, setPinPreview] = useState(null);
+  const [mapCenter, setMapCenter] = useState(null);
+  const [confirmedPin, setConfirmedPin] = useState(null);
   const [maps, setMaps] = useState(null);
   const [loadingPin, setLoadingPin] = useState(false);
   const [loadingMaps, setLoadingMaps] = useState(false);
@@ -51,13 +56,19 @@ export default function Home() {
     observer.observe(document.body);
 
     return () => observer.disconnect();
-  }, [pinPreview, maps]);
+  }, [confirmedPin, maps]);
 
   const resetOutput = () => {
     setPinSeed(null);
-    setPinPreview(null);
+    setMapCenter(null);
+    setConfirmedPin(null);
     setMaps(null);
   };
+
+  const handleMarkerChange = useCallback((nextPin) => {
+    setConfirmedPin(nextPin);
+    setMaps(null);
+  }, []);
 
   const generatePin = async () => {
     if (!street) return alert("Select a street");
@@ -74,7 +85,8 @@ export default function Home() {
         previewOnly: true,
       });
       setPinSeed(refreshToken);
-      setPinPreview(res.data.previewMap);
+      setMapCenter(res.data.center);
+      setConfirmedPin(res.data.pin);
       setMaps(null);
     } catch (err) {
       alert("Failed to generate pin");
@@ -83,7 +95,7 @@ export default function Home() {
   };
 
   const generateMaps = async () => {
-    if (!pinSeed) return alert("Generate and confirm a pin first");
+    if (!pinSeed || !confirmedPin) return alert("Generate and confirm a pin first");
 
     setLoadingMaps(true);
     try {
@@ -92,6 +104,7 @@ export default function Home() {
         city,
         count,
         refreshToken: pinSeed,
+        confirmedPin,
       });
       setMaps(res.data.maps);
     } catch (err) {
@@ -151,12 +164,12 @@ export default function Home() {
         </div>
 
         <button className="btn" onClick={generatePin} disabled={loadingPin}>
-          {loadingPin ? "Finding Pin..." : pinPreview ? "Refresh Pin" : "Generate Pin"}
+          {loadingPin ? "Finding Pin..." : confirmedPin ? "Refresh Pin" : "Generate Pin"}
         </button>
 
       </div>
 
-      {pinPreview && (
+      {confirmedPin && mapCenter && (
         <div className="preview">
           <div className="map-preview-header">
             <h2>Pin Preview</h2>
@@ -166,7 +179,11 @@ export default function Home() {
           </div>
 
           <div className="map-preview-box">
-            <img src={pinPreview} alt="Generated canvassing pin preview" />
+            <DraggablePinMap
+              center={mapCenter}
+              marker={confirmedPin}
+              onMarkerChange={handleMarkerChange}
+            />
           </div>
 
           <button className="btn confirm-btn" onClick={generateMaps} disabled={loadingMaps}>
