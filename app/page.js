@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import axios from "axios";
 import "./globals.css";
@@ -28,25 +28,76 @@ export default function Home() {
   const [city, setCity] = useState("Daly City, CA");
   const [street, setStreet] = useState("");
   const [count, setCount] = useState(2);
+  const [pinSeed, setPinSeed] = useState(null);
+  const [pinPreview, setPinPreview] = useState(null);
   const [maps, setMaps] = useState(null);
-  const [loading, setLoading] = useState(false);
+  const [loadingPin, setLoadingPin] = useState(false);
+  const [loadingMaps, setLoadingMaps] = useState(false);
 
-  const generate = async () => {
+  useEffect(() => {
+    const sendHeight = () => {
+      window.parent?.postMessage(
+        {
+          type: "soul-winning-map:height",
+          height: document.documentElement.scrollHeight,
+        },
+        "*"
+      );
+    };
+
+    sendHeight();
+
+    const observer = new ResizeObserver(sendHeight);
+    observer.observe(document.body);
+
+    return () => observer.disconnect();
+  }, [pinPreview, maps]);
+
+  const resetOutput = () => {
+    setPinSeed(null);
+    setPinPreview(null);
+    setMaps(null);
+  };
+
+  const generatePin = async () => {
     if (!street) return alert("Select a street");
 
-    setLoading(true);
+    const refreshToken = Date.now();
+
+    setLoadingPin(true);
+    try {
+      const res = await axios.post("/api/map", {
+        street,
+        city,
+        count: 1,
+        refreshToken,
+        previewOnly: true,
+      });
+      setPinSeed(refreshToken);
+      setPinPreview(res.data.previewMap);
+      setMaps(null);
+    } catch (err) {
+      alert("Failed to generate pin");
+    }
+    setLoadingPin(false);
+  };
+
+  const generateMaps = async () => {
+    if (!pinSeed) return alert("Generate and confirm a pin first");
+
+    setLoadingMaps(true);
     try {
       const res = await axios.post("/api/map", {
         street,
         city,
         count,
-        refreshToken: Date.now(),
+        refreshToken: pinSeed,
       });
       setMaps(res.data.maps);
     } catch (err) {
       alert("Failed to generate maps");
     }
-    setLoading(false);
+    setLoadingMaps(false);
   };
 
   return (
@@ -61,6 +112,7 @@ export default function Home() {
             onChange={(e) => {
               setCity(e.target.value);
               setStreet("");
+              resetOutput();
             }}
           >
             {Object.keys(DATA).map((c) => (
@@ -75,7 +127,10 @@ export default function Home() {
             type="text"
             placeholder="Enter street (e.g. Mission St)"
             value={street}
-            onChange={(e) => setStreet(e.target.value)}
+            onChange={(e) => {
+              setStreet(e.target.value);
+              resetOutput();
+            }}
             className="input"
           />
         </div>
@@ -84,7 +139,10 @@ export default function Home() {
           <label>Number of Maps</label>
           <select
             value={count}
-            onChange={(e) => setCount(Number(e.target.value))}
+            onChange={(e) => {
+              setCount(Number(e.target.value));
+              setMaps(null);
+            }}
           >
             <option value={2}>2 Maps</option>
             <option value={4}>4 Maps</option>
@@ -92,30 +150,38 @@ export default function Home() {
           </select>
         </div>
 
-        <button className="btn" onClick={generate}>
-          {loading ? "Generating..." : "Generate Maps"}
+        <button className="btn" onClick={generatePin} disabled={loadingPin}>
+          {loadingPin ? "Finding Pin..." : pinPreview ? "Refresh Pin" : "Generate Pin"}
         </button>
 
       </div>
 
-      {maps && (
+      {pinPreview && (
         <div className="preview">
           <div className="map-preview-header">
-            <h2>Map Preview</h2>
-            <button className="btn-secondary" onClick={generate} disabled={loading}>
-              {loading ? "Refreshing..." : "Refresh Pin"}
+            <h2>Pin Preview</h2>
+            <button className="btn-secondary" onClick={generatePin} disabled={loadingPin}>
+              {loadingPin ? "Refreshing..." : "Try Another Pin"}
             </button>
           </div>
 
           <div className="map-preview-box">
-            <img src={maps[0]} alt="Generated canvassing map preview" />
+            <img src={pinPreview} alt="Generated canvassing pin preview" />
           </div>
 
-          <h2 className="pdf-preview-title">PDF Preview</h2>
+          <button className="btn confirm-btn" onClick={generateMaps} disabled={loadingMaps}>
+            {loadingMaps ? "Generating PDF..." : "Confirm Pin & Generate PDF"}
+          </button>
 
-          <div className="preview-box">
-            <PDFPreview maps={maps} />
-          </div>
+          {maps && (
+            <>
+              <h2 className="pdf-preview-title">PDF Preview</h2>
+
+              <div className="preview-box">
+                <PDFPreview maps={maps} />
+              </div>
+            </>
+          )}
         </div>
       )}
 

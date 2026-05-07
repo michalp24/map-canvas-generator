@@ -150,6 +150,10 @@ select:focus {
   object-fit: cover;
 }
 
+.confirm-btn {
+  margin-top: 14px;
+}
+
 .pdf-preview-title {
   margin-top: 28px;
   margin-bottom: 12px;
