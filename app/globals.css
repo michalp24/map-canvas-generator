@@ -129,6 +129,19 @@ select:focus {
   background: #fff;
 }
 
+.preview-status {
+  display: grid;
+  place-items: center;
+  min-height: 500px;
+  color: #6b7280;
+  font-size: 14px;
+}
+
+.pdf-frame {
+  display: block;
+  border: 0;
+}
+
 /* ========== RESPONSIVE ========== */
 @media (max-width: 600px) {
   .container {

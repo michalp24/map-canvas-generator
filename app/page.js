@@ -1,10 +1,13 @@
 "use client";
 
 import { useState } from "react";
+import dynamic from "next/dynamic";
 import axios from "axios";
-import MapPDF from "../components/MapPDF";
-import { PDFViewer } from "@react-pdf/renderer";
 import "./globals.css";
+
+const PDFPreview = dynamic(() => import("../components/PDFPreview"), {
+  ssr: false,
+});
 
 const DATA = {
   "Daly City, CA": [
@@ -104,9 +107,7 @@ export default function Home() {
           <h2>Preview</h2>
 
           <div className="preview-box">
-            <PDFViewer width="100%" height={500}>
-              <MapPDF maps={maps} />
-            </PDFViewer>
+            <PDFPreview maps={maps} />
           </div>
         </div>
       )}
