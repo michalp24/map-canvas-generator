@@ -186,6 +186,10 @@ select:focus {
   transform: translate(-50%, -120%);
 }
 
+.canvassing-block {
+  vector-effect: non-scaling-stroke;
+}
+
 .confirm-btn {
   margin-top: 14px;
 }

@@ -53,6 +53,57 @@ function getPinLocation(lat, lng, index, random) {
   };
 }
 
+function getHighlightedBlocks({ lat, lng }) {
+  const blockLat = 0.00072;
+  const blockLng = 0.0009;
+  const gap = 0.0001;
+
+  return [
+    {
+      north: lat + gap + blockLat,
+      south: lat + gap,
+      west: lng - gap - blockLng,
+      east: lng - gap,
+    },
+    {
+      north: lat + gap + blockLat,
+      south: lat + gap,
+      west: lng + gap,
+      east: lng + gap + blockLng,
+    },
+    {
+      north: lat - gap,
+      south: lat - gap - blockLat,
+      west: lng - gap - blockLng,
+      east: lng - gap,
+    },
+    {
+      north: lat - gap,
+      south: lat - gap - blockLat,
+      west: lng + gap,
+      east: lng + gap + blockLng,
+    },
+  ];
+}
+
+function appendHighlightedBlocks(url, location) {
+  getHighlightedBlocks(location).forEach((block) => {
+    url.searchParams.append(
+      "path",
+      [
+        "fillcolor:0x2563EB33",
+        "color:0x2563EBCC",
+        "weight:2",
+        `${block.north},${block.west}`,
+        `${block.north},${block.east}`,
+        `${block.south},${block.east}`,
+        `${block.south},${block.west}`,
+        `${block.north},${block.west}`,
+      ].join("|")
+    );
+  });
+}
+
 export async function POST(req) {
   try {
     const {
@@ -90,6 +141,7 @@ export async function POST(req) {
         markers: `color:red|${location.lat},${location.lng}`,
         key,
       }).toString();
+      appendHighlightedBlocks(url, location);
 
       const map = await fetchAsBase64(url);
       maps.push(map);
@@ -100,6 +152,7 @@ export async function POST(req) {
       previewMap: maps[0],
       center: geocoded,
       pin: initialPin,
+      blocks: getHighlightedBlocks(initialPin),
     });
   } catch (err) {
     console.error("SERVER ERROR:", err);
