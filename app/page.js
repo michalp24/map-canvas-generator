@@ -29,6 +29,14 @@ const DATA = {
   ],
 };
 
+function getCompletedEntries() {
+  return JSON.parse(localStorage.getItem("completedMapPrints") || "[]");
+}
+
+function getAvoidedBlocks() {
+  return getCompletedEntries().flatMap((entry) => entry.blocksByMap || []).flat();
+}
+
 export default function Home() {
   const [city, setCity] = useState("Daly City, CA");
   const [street, setStreet] = useState("");
@@ -90,6 +98,7 @@ export default function Home() {
         previewOnly: true,
         confirmedPin: nextPin,
         blockCount,
+        avoidedBlocks: getAvoidedBlocks(),
       });
 
       setHighlightedBlocks(res.data.blocks || []);
@@ -124,7 +133,7 @@ export default function Home() {
       blockCount,
       blocksByMap: result.blocksByMap || [],
     };
-    const existing = JSON.parse(localStorage.getItem("completedMapPrints") || "[]");
+    const existing = getCompletedEntries();
     localStorage.setItem(
       "completedMapPrints",
       JSON.stringify([entry, ...existing].slice(0, 200))
@@ -145,6 +154,7 @@ export default function Home() {
         refreshToken,
         previewOnly: true,
         blockCount,
+        avoidedBlocks: getAvoidedBlocks(),
       });
       setPinSeed(refreshToken);
       setMapCenter(res.data.center);
@@ -172,6 +182,7 @@ export default function Home() {
         refreshToken: pinSeed,
         confirmedPin,
         blockCount,
+        avoidedBlocks: getAvoidedBlocks(),
       });
       applyBlockResult(res.data.blocks);
       setMaps(res.data.maps);

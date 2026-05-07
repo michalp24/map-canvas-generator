@@ -97,7 +97,40 @@ async function fetchNearbyRoads({ lat, lng }) {
     );
 }
 
-async function getHighlightedBlocks(location, blockCount = 2) {
+function toPolygon(block) {
+  const coordinates = block.map((point) => [point.lng, point.lat]);
+
+  if (
+    coordinates.length &&
+    (coordinates[0][0] !== coordinates[coordinates.length - 1][0] ||
+      coordinates[0][1] !== coordinates[coordinates.length - 1][1])
+  ) {
+    coordinates.push(coordinates[0]);
+  }
+
+  return turf.polygon([coordinates]);
+}
+
+function blockMatchesCoveredArea(block, avoidedBlocks = []) {
+  if (!block?.length || !avoidedBlocks.length) return false;
+
+  const blockPolygon = toPolygon(block);
+  const blockCentroid = turf.centroid(blockPolygon);
+
+  return avoidedBlocks.some((avoidedBlock) => {
+    if (!avoidedBlock?.length) return false;
+
+    const avoidedPolygon = toPolygon(avoidedBlock);
+    const avoidedCentroid = turf.centroid(avoidedPolygon);
+
+    return (
+      turf.booleanPointInPolygon(blockCentroid, avoidedPolygon, { ignoreBoundary: true }) ||
+      turf.booleanPointInPolygon(avoidedCentroid, blockPolygon, { ignoreBoundary: true })
+    );
+  });
+}
+
+async function getHighlightedBlocks(location, blockCount = 2, avoidedBlocks = []) {
   try {
     const roads = await fetchNearbyRoads(location);
     if (roads.length < 8) return FALLBACK_BLOCKS;
@@ -122,6 +155,7 @@ async function getHighlightedBlocks(location, blockCount = 2) {
         };
       })
       .filter((block) => block.area > 1200 && block.area < 90000)
+      .filter((block) => !blockMatchesCoveredArea(block.coordinates, avoidedBlocks))
       .sort((a, b) => a.distance - b.distance)
       .slice(0, blockCount)
       .map((block) => block.coordinates);
@@ -129,6 +163,35 @@ async function getHighlightedBlocks(location, blockCount = 2) {
     console.error("Block detection failed:", err);
     return FALLBACK_BLOCKS;
   }
+}
+
+async function getPinAndBlocks({
+  avoidedBlocks,
+  blockCount,
+  confirmedPin,
+  geocoded,
+  random,
+}) {
+  if (confirmedPin) {
+    const blocks = await getHighlightedBlocks(confirmedPin, blockCount, avoidedBlocks);
+    return { blocks, pin: confirmedPin };
+  }
+
+  for (let attempt = 0; attempt < 12; attempt++) {
+    const pin =
+      attempt === 0
+        ? getPinLocation(geocoded.lat, geocoded.lng, 0, random)
+        : getPinLocation(geocoded.lat, geocoded.lng, attempt, random);
+    const blocks = await getHighlightedBlocks(pin, blockCount, avoidedBlocks);
+
+    if (blocks.length >= blockCount) {
+      return { blocks, pin };
+    }
+  }
+
+  const pin = getPinLocation(geocoded.lat, geocoded.lng, 0, random);
+  const blocks = await getHighlightedBlocks(pin, blockCount, avoidedBlocks);
+  return { blocks, pin };
 }
 
 function appendHighlightedBlocks(url, location) {
@@ -168,6 +231,7 @@ export async function POST(req) {
       previewOnly,
       confirmedPin,
       blockCount = 2,
+      avoidedBlocks = [],
     } = await req.json();
 
     const key = process.env.GOOGLE_MAPS_API_KEY;
@@ -178,12 +242,17 @@ export async function POST(req) {
     const address = `${street}, ${city}`;
     const geocoded = await geocode(address, key);
     const random = seededRandom(Number(refreshToken) || Date.now());
-    const initialPin = confirmedPin || getPinLocation(geocoded.lat, geocoded.lng, 0, random);
     const requestedBlockCount = Math.min(Math.max(Number(blockCount) || 2, 1), 4);
     const mapCount = previewOnly ? 1 : count;
     const maps = [];
     const blocksByMap = [];
-    const initialBlocks = await getHighlightedBlocks(initialPin, requestedBlockCount);
+    const { blocks: initialBlocks, pin: initialPin } = await getPinAndBlocks({
+      avoidedBlocks,
+      blockCount: requestedBlockCount,
+      confirmedPin,
+      geocoded,
+      random,
+    });
 
     if (previewOnly) {
       return NextResponse.json({
@@ -197,10 +266,34 @@ export async function POST(req) {
     }
 
     for (let i = 0; i < mapCount; i++) {
-      const location =
-        i === 0 ? initialPin : getPinLocation(initialPin.lat, initialPin.lng, i, random);
-      const blocks =
-        i === 0 ? initialBlocks : await getHighlightedBlocks(location, requestedBlockCount);
+      const currentAvoidedBlocks = [
+        ...avoidedBlocks,
+        ...blocksByMap.flat(),
+      ];
+      let location = i === 0 ? initialPin : null;
+      let blocks = i === 0 ? initialBlocks : [];
+
+      if (i > 0) {
+        for (let attempt = 0; attempt < 10; attempt++) {
+          const candidate = getPinLocation(
+            initialPin.lat,
+            initialPin.lng,
+            i + attempt * mapCount,
+            random
+          );
+          const candidateBlocks = await getHighlightedBlocks(
+            candidate,
+            requestedBlockCount,
+            currentAvoidedBlocks
+          );
+
+          if (candidateBlocks.length >= requestedBlockCount) {
+            location = candidate;
+            blocks = candidateBlocks;
+            break;
+          }
+        }
+      }
 
       if (blocks.length < requestedBlockCount) {
         throw new Error(`Could not identify ${requestedBlockCount} road-bound blocks near this pin`);

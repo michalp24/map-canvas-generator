@@ -4,6 +4,19 @@ import { useEffect, useRef } from "react";
 
 const CITY_CENTER = [37.6735, -122.4595];
 
+function getEntryCenter(entry) {
+  const points = (entry.blocksByMap || []).flat().flat();
+  if (!points.length) return null;
+
+  return points.reduce(
+    (center, point, index) => ({
+      lat: center.lat + (point.lat - center.lat) / (index + 1),
+      lng: center.lng + (point.lng - center.lng) / (index + 1),
+    }),
+    { lat: points[0].lat, lng: points[0].lng }
+  );
+}
+
 export default function CompletedOverviewMap({ entries }) {
   const containerRef = useRef(null);
   const mapRef = useRef(null);
@@ -55,7 +68,9 @@ export default function CompletedOverviewMap({ entries }) {
 
       const bounds = [];
 
-      entries.forEach((entry, entryIndex) => {
+      entries.forEach((entry) => {
+        const entryCenter = getEntryCenter(entry);
+
         entry.blocksByMap?.forEach((blocks, mapIndex) => {
           blocks.forEach((block) => {
             const points = block.map((point) => [point.lat, point.lng]);
@@ -63,11 +78,11 @@ export default function CompletedOverviewMap({ entries }) {
 
             L.polygon(points, {
               className: "completed-block",
-              color: "#0f766e",
-              fillColor: "#14b8a6",
-              fillOpacity: 0.24,
-              opacity: 0.9,
-              weight: 2,
+              color: "#b45309",
+              fillColor: "#f59e0b",
+              fillOpacity: 0.46,
+              opacity: 1,
+              weight: 4,
             })
               .bindPopup(
                 `${entry.street}, ${entry.city}<br />Map ${mapIndex + 1}<br />${new Date(
@@ -77,6 +92,27 @@ export default function CompletedOverviewMap({ entries }) {
               .addTo(layerRef.current);
           });
         });
+
+        if (entryCenter) {
+          const printedDate = new Date(entry.createdAt).toLocaleDateString(undefined, {
+            month: "short",
+            day: "numeric",
+          });
+          const dateIcon = L.divIcon({
+            className: "date-marker",
+            html: `<span>${printedDate}</span>`,
+            iconAnchor: [34, 17],
+            iconSize: [68, 34],
+          });
+
+          L.marker([entryCenter.lat, entryCenter.lng], { icon: dateIcon })
+            .bindPopup(
+              `${entry.street}, ${entry.city}<br />Printed ${new Date(
+                entry.createdAt
+              ).toLocaleString()}`
+            )
+            .addTo(layerRef.current);
+        }
       });
 
       if (bounds.length) {
