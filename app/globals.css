@@ -19,6 +19,26 @@ body {
   padding: 32px 20px;
 }
 
+.top-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 12px;
+}
+
+.overview-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 34px;
+  padding: 7px 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  color: #111;
+  font-size: 12px;
+  font-weight: 500;
+  text-decoration: none;
+}
+
 /* ========== CARD ========== */
 .card {
   border: 1px solid #e5e7eb;
@@ -190,6 +210,10 @@ select:focus {
   vector-effect: non-scaling-stroke;
 }
 
+.completed-block {
+  vector-effect: non-scaling-stroke;
+}
+
 .block-warning {
   margin-top: 12px;
   color: #92400e;
@@ -249,10 +273,71 @@ select:focus {
   height: min(70vh, 640px);
 }
 
+/* ========== OVERVIEW ========== */
+.overview-container {
+  max-width: 960px;
+}
+
+.overview-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.overview-summary {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.overview-summary div {
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 14px;
+  background: #fff;
+}
+
+.overview-summary span {
+  display: block;
+  font-size: 24px;
+  font-weight: 650;
+  line-height: 1;
+}
+
+.overview-summary p {
+  margin-top: 4px;
+  color: #6b7280;
+  font-size: 12px;
+}
+
+.overview-map-box {
+  overflow: hidden;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  background: #f3f4f6;
+}
+
+.overview-map {
+  width: 100%;
+  height: min(78vh, 720px);
+  min-height: 520px;
+}
+
 /* ========== RESPONSIVE ========== */
 @media (max-width: 600px) {
   .container {
     padding: 16px;
+  }
+
+  .top-actions {
+    justify-content: stretch;
+  }
+
+  .overview-link {
+    width: 100%;
   }
 
   .card {
@@ -289,5 +374,18 @@ select:focus {
 
   .pdf-frame {
     display: none;
+  }
+
+  .overview-header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .overview-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .overview-map {
+    height: 520px;
   }
 }

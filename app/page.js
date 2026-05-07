@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import dynamic from "next/dynamic";
+import Link from "next/link";
 import axios from "axios";
 import "./globals.css";
 
@@ -32,6 +33,7 @@ export default function Home() {
   const [city, setCity] = useState("Daly City, CA");
   const [street, setStreet] = useState("");
   const [count, setCount] = useState(2);
+  const [blockCount, setBlockCount] = useState(2);
   const [pinSeed, setPinSeed] = useState(null);
   const [mapCenter, setMapCenter] = useState(null);
   const [confirmedPin, setConfirmedPin] = useState(null);
@@ -60,6 +62,11 @@ export default function Home() {
     return () => observer.disconnect();
   }, [confirmedPin, maps]);
 
+  useEffect(() => {
+    if (!confirmedPin || !pinSeed || !street) return;
+    handleMarkerChange(confirmedPin);
+  }, [blockCount]);
+
   const resetOutput = () => {
     setPinSeed(null);
     setMapCenter(null);
@@ -82,25 +89,45 @@ export default function Home() {
         refreshToken: pinSeed || Date.now(),
         previewOnly: true,
         confirmedPin: nextPin,
+        blockCount,
       });
 
       setHighlightedBlocks(res.data.blocks || []);
 
-      if ((res.data.blocks || []).length < 4) {
-        setBlockWarning("Move the pin near a more complete street grid to identify 4 road-bound blocks.");
+      if ((res.data.blocks || []).length < blockCount) {
+        setBlockWarning(
+          `Move the pin near a more complete street grid to identify ${blockCount} road-bound block${blockCount === 1 ? "" : "s"}.`
+        );
       }
     } catch (err) {
       setHighlightedBlocks([]);
       setBlockWarning("Could not identify road-bound blocks at this pin.");
     }
-  }, [city, pinSeed, street]);
+  }, [blockCount, city, pinSeed, street]);
 
   const applyBlockResult = (blocks) => {
     setHighlightedBlocks(blocks || []);
     setBlockWarning(
-      (blocks || []).length >= 4
+      (blocks || []).length >= blockCount
         ? ""
-        : "Could not identify 4 road-bound blocks near this pin. Try another nearby pin."
+        : `Could not identify ${blockCount} road-bound block${blockCount === 1 ? "" : "s"} near this pin. Try another nearby pin.`
+    );
+  };
+
+  const saveCompletedMap = (result) => {
+    const entry = {
+      id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      createdAt: new Date().toISOString(),
+      city,
+      street,
+      mapCount: count,
+      blockCount,
+      blocksByMap: result.blocksByMap || [],
+    };
+    const existing = JSON.parse(localStorage.getItem("completedMapPrints") || "[]");
+    localStorage.setItem(
+      "completedMapPrints",
+      JSON.stringify([entry, ...existing].slice(0, 200))
     );
   };
 
@@ -117,6 +144,7 @@ export default function Home() {
         count: 1,
         refreshToken,
         previewOnly: true,
+        blockCount,
       });
       setPinSeed(refreshToken);
       setMapCenter(res.data.center);
@@ -131,8 +159,8 @@ export default function Home() {
 
   const generateMaps = async () => {
     if (!pinSeed || !confirmedPin) return alert("Generate and confirm a pin first");
-    if (highlightedBlocks.length < 4) {
-      return alert("Move the pin until 4 road-bound blocks are highlighted first");
+    if (highlightedBlocks.length < blockCount) {
+      return alert(`Move the pin until ${blockCount} road-bound block${blockCount === 1 ? "" : "s"} are highlighted first`);
     }
 
     setLoadingMaps(true);
@@ -143,9 +171,11 @@ export default function Home() {
         count,
         refreshToken: pinSeed,
         confirmedPin,
+        blockCount,
       });
       applyBlockResult(res.data.blocks);
       setMaps(res.data.maps);
+      saveCompletedMap(res.data);
     } catch (err) {
       alert("Failed to generate maps");
     }
@@ -154,6 +184,11 @@ export default function Home() {
 
   return (
     <div className="container">
+      <div className="top-actions">
+        <Link className="overview-link" href="/overview">
+          Completed Map Overview
+        </Link>
+      </div>
 
       <div className="card">
 
@@ -202,6 +237,23 @@ export default function Home() {
           </select>
         </div>
 
+        <div className="field">
+          <label>Blocks per Map</label>
+          <select
+            value={blockCount}
+            onChange={(e) => {
+              setBlockCount(Number(e.target.value));
+              setMaps(null);
+              setBlockWarning("");
+            }}
+          >
+            <option value={1}>1 Block</option>
+            <option value={2}>2 Blocks</option>
+            <option value={3}>3 Blocks</option>
+            <option value={4}>4 Blocks</option>
+          </select>
+        </div>
+
         <button className="btn" onClick={generatePin} disabled={loadingPin}>
           {loadingPin ? "Finding Pin..." : confirmedPin ? "Refresh Pin" : "Generate Pin"}
         </button>
@@ -231,7 +283,7 @@ export default function Home() {
           <button
             className="btn confirm-btn"
             onClick={generateMaps}
-            disabled={loadingMaps || highlightedBlocks.length < 4}
+            disabled={loadingMaps || highlightedBlocks.length < blockCount}
           >
             {loadingMaps ? "Generating PDF..." : "Confirm Pin & Generate PDF"}
           </button>

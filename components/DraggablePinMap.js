@@ -23,12 +23,12 @@ export default function DraggablePinMap({ blocks, center, marker, onMarkerChange
         L.polygon(
           block.map((point) => [point.lat, point.lng]),
           {
-          className: "canvassing-block",
-          color: "#2563eb",
-          fillColor: "#2563eb",
-          fillOpacity: 0.18,
-          opacity: 0.85,
-          weight: 2,
+            className: "canvassing-block",
+            color: "#2563eb",
+            fillColor: "#2563eb",
+            fillOpacity: 0.18,
+            opacity: 0.85,
+            weight: 2,
           }
         )
       )
@@ -68,7 +68,6 @@ export default function DraggablePinMap({ blocks, center, marker, onMarkerChange
         draggable: true,
         icon: pinIcon,
       }).addTo(map);
-      drawHighlightedBlocks(marker);
 
       mapMarker.on("dragend", () => {
         const next = mapMarker.getLatLng();

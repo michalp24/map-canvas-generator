@@ -97,7 +97,7 @@ async function fetchNearbyRoads({ lat, lng }) {
     );
 }
 
-async function getHighlightedBlocks(location) {
+async function getHighlightedBlocks(location, blockCount = 2) {
   try {
     const roads = await fetchNearbyRoads(location);
     if (roads.length < 8) return FALLBACK_BLOCKS;
@@ -123,7 +123,7 @@ async function getHighlightedBlocks(location) {
       })
       .filter((block) => block.area > 1200 && block.area < 90000)
       .sort((a, b) => a.distance - b.distance)
-      .slice(0, 4)
+      .slice(0, blockCount)
       .map((block) => block.coordinates);
   } catch (err) {
     console.error("Block detection failed:", err);
@@ -157,6 +157,7 @@ export async function POST(req) {
       refreshToken,
       previewOnly,
       confirmedPin,
+      blockCount = 2,
     } = await req.json();
 
     const key = process.env.GOOGLE_MAPS_API_KEY;
@@ -168,18 +169,33 @@ export async function POST(req) {
     const geocoded = await geocode(address, key);
     const random = seededRandom(Number(refreshToken) || Date.now());
     const initialPin = confirmedPin || getPinLocation(geocoded.lat, geocoded.lng, 0, random);
+    const requestedBlockCount = Math.min(Math.max(Number(blockCount) || 2, 1), 4);
     const mapCount = previewOnly ? 1 : count;
     const maps = [];
-    const initialBlocks = await getHighlightedBlocks(initialPin);
+    const blocksByMap = [];
+    const initialBlocks = await getHighlightedBlocks(initialPin, requestedBlockCount);
+
+    if (previewOnly) {
+      return NextResponse.json({
+        maps: [],
+        previewMap: null,
+        center: geocoded,
+        pin: initialPin,
+        blocks: initialBlocks,
+        blocksByMap: [initialBlocks],
+      });
+    }
 
     for (let i = 0; i < mapCount; i++) {
       const location =
         i === 0 ? initialPin : getPinLocation(initialPin.lat, initialPin.lng, i, random);
-      const blocks = i === 0 ? initialBlocks : await getHighlightedBlocks(location);
+      const blocks =
+        i === 0 ? initialBlocks : await getHighlightedBlocks(location, requestedBlockCount);
 
-      if (!previewOnly && blocks.length < 4) {
-        throw new Error("Could not identify 4 road-bound blocks near this pin");
+      if (blocks.length < requestedBlockCount) {
+        throw new Error(`Could not identify ${requestedBlockCount} road-bound blocks near this pin`);
       }
+      blocksByMap.push(blocks);
 
       const url = new URL(base);
 
@@ -204,6 +220,7 @@ export async function POST(req) {
       center: geocoded,
       pin: initialPin,
       blocks: initialBlocks,
+      blocksByMap,
     });
   } catch (err) {
     console.error("SERVER ERROR:", err);
