@@ -9,7 +9,7 @@ export default function DraggablePinMap({ blocks, center, marker, onMarkerChange
   const markerRef = useRef(null);
   const blockLayerRef = useRef(null);
 
-  const drawHighlightedBlocks = (nextBlocks) => {
+  const drawHighlightedBlocks = (nextBlocks, nextMarker = marker) => {
     const L = leafletRef.current;
     const map = mapRef.current;
     if (!L || !map) return;
@@ -33,18 +33,24 @@ export default function DraggablePinMap({ blocks, center, marker, onMarkerChange
         )
       )
     ).addTo(map);
-    blockLayerRef.current.bringToFront();
 
     const boundsPoints = (nextBlocks || [])
       .flat()
       .map((point) => [point.lat, point.lng]);
 
+    if (nextMarker) {
+      boundsPoints.push([nextMarker.lat, nextMarker.lng]);
+    }
+
     if (boundsPoints.length) {
-      boundsPoints.push(markerRef.current?.getLatLng() || [map.getCenter().lat, map.getCenter().lng]);
-      map.fitBounds(L.latLngBounds(boundsPoints), {
-        maxZoom: 17,
-        padding: [30, 30],
-      });
+      setTimeout(() => {
+        map.invalidateSize();
+        map.fitBounds(L.latLngBounds(boundsPoints), {
+          maxZoom: 16,
+          padding: [56, 56],
+        });
+        markerRef.current?.bringToFront();
+      }, 0);
     }
   };
 
@@ -68,9 +74,6 @@ export default function DraggablePinMap({ blocks, center, marker, onMarkerChange
         attribution:
           '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
       }).addTo(map);
-      mapRef.current = map;
-      drawHighlightedBlocks(blocks);
-
       const pinIcon = L.divIcon({
         className: "pin-marker",
         iconSize: [24, 24],
@@ -80,6 +83,7 @@ export default function DraggablePinMap({ blocks, center, marker, onMarkerChange
       const mapMarker = L.marker([marker.lat, marker.lng], {
         draggable: true,
         icon: pinIcon,
+        zIndexOffset: 1000,
       }).addTo(map);
 
       mapMarker.on("dragend", () => {
@@ -88,6 +92,8 @@ export default function DraggablePinMap({ blocks, center, marker, onMarkerChange
       });
 
       markerRef.current = mapMarker;
+      mapRef.current = map;
+      drawHighlightedBlocks(blocks, marker);
 
       setTimeout(() => map.invalidateSize(), 0);
     }
@@ -107,14 +113,15 @@ export default function DraggablePinMap({ blocks, center, marker, onMarkerChange
   }, [center, onMarkerChange]);
 
   useEffect(() => {
-    drawHighlightedBlocks(blocks);
-  }, [blocks]);
+    drawHighlightedBlocks(blocks, marker);
+  }, [blocks, marker]);
 
   useEffect(() => {
     if (!mapRef.current || !markerRef.current || !marker) return;
 
     markerRef.current.setLatLng([marker.lat, marker.lng]);
-    setTimeout(() => mapRef.current?.invalidateSize(), 0);
+    markerRef.current.bringToFront();
+    drawHighlightedBlocks(blocks, marker);
   }, [marker]);
 
   return <div ref={containerRef} className="pin-map" />;
