@@ -118,6 +118,12 @@ export default function DraggablePinMap({ blocks, center, marker, onMarkerChange
         onMarkerChange({ lat: next.lat, lng: next.lng });
       });
 
+      map.on("click", (event) => {
+        mapMarker.setLatLng(event.latlng);
+        mapMarker.bringToFront();
+        onMarkerChange({ lat: event.latlng.lat, lng: event.latlng.lng });
+      });
+
       markerRef.current = mapMarker;
       mapRef.current = map;
       drawHighlightedBlocks(blocks, marker);

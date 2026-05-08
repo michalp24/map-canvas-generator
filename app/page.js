@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import axios from "axios";
@@ -123,7 +123,9 @@ export default function Home() {
   const [maps, setMaps] = useState(null);
   const [loadingPin, setLoadingPin] = useState(false);
   const [loadingMaps, setLoadingMaps] = useState(false);
+  const [recalculatingBlocks, setRecalculatingBlocks] = useState(false);
   const [hydrated, setHydrated] = useState(false);
+  const blockRequestRef = useRef(0);
 
   useEffect(() => {
     let active = true;
@@ -239,9 +241,14 @@ export default function Home() {
   };
 
   const handleMarkerChange = useCallback(async (nextPin) => {
+    const requestId = blockRequestRef.current + 1;
+    blockRequestRef.current = requestId;
+
     setConfirmedPin(nextPin);
+    setHighlightedBlocks([]);
     setMaps(null);
     setBlockWarning("");
+    setRecalculatingBlocks(true);
 
     try {
       const res = await axios.post("/api/map", {
@@ -255,16 +262,25 @@ export default function Home() {
         avoidedBlocks: getAvoidedBlocks(),
       });
 
-      setHighlightedBlocks(res.data.blocks || []);
+      if (blockRequestRef.current !== requestId) return;
 
-      if ((res.data.blocks || []).length < blockCount) {
+      const nextBlocks = res.data.blocks || [];
+      setHighlightedBlocks(nextBlocks);
+
+      if (nextBlocks.length < blockCount) {
         setBlockWarning(
           `Move the pin near a more complete street grid to identify ${blockCount} road-bound block${blockCount === 1 ? "" : "s"}.`
         );
       }
     } catch (err) {
+      if (blockRequestRef.current !== requestId) return;
+
       setHighlightedBlocks([]);
       setBlockWarning("Could not identify road-bound blocks at this pin.");
+    } finally {
+      if (blockRequestRef.current === requestId) {
+        setRecalculatingBlocks(false);
+      }
     }
   }, [blockCount, city, pinSeed, street]);
 
@@ -430,6 +446,7 @@ export default function Home() {
           disabled={
             loadingPin ||
             loadingMaps ||
+            recalculatingBlocks ||
             (Boolean(confirmedPin) && highlightedBlocks.length < blockCount)
           }
         >
@@ -437,6 +454,8 @@ export default function Home() {
             ? "Finding Pin..."
             : loadingMaps
               ? "Generating Map..."
+              : recalculatingBlocks
+                ? "Recalculating Blocks..."
               : confirmedPin
                 ? "Confirm Pin & Generate Map"
                 : "Generate Pin"}
@@ -460,6 +479,9 @@ export default function Home() {
               marker={confirmedPin}
               onMarkerChange={handleMarkerChange}
             />
+            {recalculatingBlocks && (
+              <div className="map-loading-status">Recalculating blocks...</div>
+            )}
           </div>
 
           {blockWarning && <p className="block-warning">{blockWarning}</p>}
