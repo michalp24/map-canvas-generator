@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 const CITY_CENTER = [37.6735, -122.4595];
 
@@ -21,6 +21,7 @@ export default function CompletedOverviewMap({ entries }) {
   const containerRef = useRef(null);
   const mapRef = useRef(null);
   const layerRef = useRef(null);
+  const [mapReady, setMapReady] = useState(false);
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
@@ -44,6 +45,7 @@ export default function CompletedOverviewMap({ entries }) {
 
       mapRef.current = map;
       layerRef.current = L.layerGroup().addTo(map);
+      setMapReady(true);
       setTimeout(() => map.invalidateSize(), 0);
     }
 
@@ -55,13 +57,14 @@ export default function CompletedOverviewMap({ entries }) {
         mapRef.current.remove();
         mapRef.current = null;
         layerRef.current = null;
+        setMapReady(false);
       }
     };
   }, []);
 
   useEffect(() => {
     async function drawBlocks() {
-      if (!mapRef.current || !layerRef.current) return;
+      if (!mapReady || !mapRef.current || !layerRef.current) return;
 
       const L = await import("leaflet");
       layerRef.current.clearLayers();
@@ -76,13 +79,13 @@ export default function CompletedOverviewMap({ entries }) {
             const points = block.map((point) => [point.lat, point.lng]);
             points.forEach((point) => bounds.push(point));
 
-            L.polygon(points, {
+            const polygon = L.polygon(points, {
               className: "completed-block",
               color: "#b45309",
               fillColor: "#f59e0b",
-              fillOpacity: 0.46,
+              fillOpacity: 0.58,
               opacity: 1,
-              weight: 4,
+              weight: 5,
             })
               .bindPopup(
                 `${entry.street}, ${entry.city}<br />Map ${mapIndex + 1}<br />${new Date(
@@ -90,6 +93,7 @@ export default function CompletedOverviewMap({ entries }) {
                 ).toLocaleString()}`
               )
               .addTo(layerRef.current);
+            polygon.bringToFront();
           });
         });
 
@@ -121,7 +125,7 @@ export default function CompletedOverviewMap({ entries }) {
     }
 
     drawBlocks();
-  }, [entries]);
+  }, [entries, mapReady]);
 
   return <div ref={containerRef} className="overview-map" />;
 }
