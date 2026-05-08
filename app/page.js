@@ -30,13 +30,84 @@ const DATA = {
 };
 
 const SESSION_KEY = "currentMapSession";
+const MAP_DB_NAME = "soulWinningMapCache";
+const MAP_DB_STORE = "sessions";
+const MAP_CACHE_ID = "current";
 
 function getCompletedEntries() {
-  return JSON.parse(localStorage.getItem("completedMapPrints") || "[]");
+  try {
+    const entries = JSON.parse(localStorage.getItem("completedMapPrints") || "[]");
+    return Array.isArray(entries) ? entries : [];
+  } catch (err) {
+    return [];
+  }
 }
 
 function getAvoidedBlocks() {
   return getCompletedEntries().flatMap((entry) => entry.blocksByMap || []).flat();
+}
+
+function openMapDb() {
+  if (typeof indexedDB === "undefined") return Promise.resolve(null);
+
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(MAP_DB_NAME, 1);
+
+    request.onupgradeneeded = () => {
+      request.result.createObjectStore(MAP_DB_STORE, { keyPath: "id" });
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+async function readCachedMaps() {
+  const db = await openMapDb();
+  if (!db) return null;
+
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(MAP_DB_STORE, "readonly");
+    const request = transaction.objectStore(MAP_DB_STORE).get(MAP_CACHE_ID);
+
+    request.onsuccess = () => resolve(request.result?.maps || null);
+    request.onerror = () => reject(request.error);
+    transaction.oncomplete = () => db.close();
+    transaction.onerror = () => db.close();
+  });
+}
+
+async function writeCachedMaps(maps) {
+  const db = await openMapDb();
+  if (!db) return;
+
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(MAP_DB_STORE, "readwrite");
+    const store = transaction.objectStore(MAP_DB_STORE);
+
+    if (maps?.length) {
+      store.put({ id: MAP_CACHE_ID, maps });
+    } else {
+      store.delete(MAP_CACHE_ID);
+    }
+
+    transaction.oncomplete = () => {
+      db.close();
+      resolve();
+    };
+    transaction.onerror = () => {
+      db.close();
+      reject(transaction.error);
+    };
+  });
+}
+
+function getSavedSession() {
+  try {
+    return JSON.parse(localStorage.getItem(SESSION_KEY) || "null");
+  } catch (err) {
+    localStorage.removeItem(SESSION_KEY);
+    return null;
+  }
 }
 
 export default function Home() {
@@ -55,7 +126,8 @@ export default function Home() {
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
-    const saved = JSON.parse(localStorage.getItem(SESSION_KEY) || "null");
+    let active = true;
+    const saved = getSavedSession();
 
     if (saved) {
       setCity(saved.city || "Daly City, CA");
@@ -67,10 +139,21 @@ export default function Home() {
       setConfirmedPin(saved.confirmedPin || null);
       setHighlightedBlocks(saved.highlightedBlocks || []);
       setBlockWarning(saved.blockWarning || "");
-      setMaps(saved.maps || null);
     }
 
     setHydrated(true);
+
+    readCachedMaps()
+      .then((cachedMaps) => {
+        if (active && cachedMaps?.length) {
+          setMaps(cachedMaps);
+        }
+      })
+      .catch(() => {});
+
+    return () => {
+      active = false;
+    };
   }, []);
 
   useEffect(() => {
@@ -84,12 +167,15 @@ export default function Home() {
       count,
       highlightedBlocks,
       mapCenter,
-      maps,
       pinSeed,
       street,
     };
 
-    localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+    try {
+      localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+    } catch (err) {
+      localStorage.removeItem(SESSION_KEY);
+    }
   }, [
     blockCount,
     blockWarning,
@@ -99,10 +185,15 @@ export default function Home() {
     highlightedBlocks,
     hydrated,
     mapCenter,
-    maps,
     pinSeed,
     street,
   ]);
+
+  useEffect(() => {
+    if (!hydrated) return;
+
+    writeCachedMaps(maps).catch(() => {});
+  }, [hydrated, maps]);
 
   useEffect(() => {
     const sendHeight = () => {
@@ -139,6 +230,7 @@ export default function Home() {
 
   const startOver = () => {
     localStorage.removeItem(SESSION_KEY);
+    writeCachedMaps(null).catch(() => {});
     setCity("Daly City, CA");
     setStreet("");
     setCount(2);
@@ -196,10 +288,12 @@ export default function Home() {
       blocksByMap: result.blocksByMap || [],
     };
     const existing = getCompletedEntries();
-    localStorage.setItem(
-      "completedMapPrints",
-      JSON.stringify([entry, ...existing].slice(0, 200))
-    );
+    try {
+      localStorage.setItem(
+        "completedMapPrints",
+        JSON.stringify([entry, ...existing].slice(0, 200))
+      );
+    } catch (err) {}
   };
 
   const generatePin = async () => {

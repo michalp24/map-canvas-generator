@@ -2,6 +2,19 @@
 
 import { useEffect, useRef } from "react";
 
+function toLatLng(point) {
+  const lat = Number(point?.lat);
+  const lng = Number(point?.lng);
+
+  return Number.isFinite(lat) && Number.isFinite(lng) ? [lat, lng] : null;
+}
+
+function getValidBlockPolygons(blocks) {
+  return (Array.isArray(blocks) ? blocks : [])
+    .map((block) => (Array.isArray(block) ? block.map(toLatLng).filter(Boolean) : []))
+    .filter((block) => block.length >= 3);
+}
+
 export default function DraggablePinMap({ blocks, center, marker, onMarkerChange }) {
   const containerRef = useRef(null);
   const leafletRef = useRef(null);
@@ -14,43 +27,53 @@ export default function DraggablePinMap({ blocks, center, marker, onMarkerChange
     const map = mapRef.current;
     if (!L || !map) return;
 
-    if (blockLayerRef.current) {
-      blockLayerRef.current.remove();
-    }
+    try {
+      if (blockLayerRef.current) {
+        blockLayerRef.current.remove();
+      }
 
-    blockLayerRef.current = L.layerGroup(
-      (nextBlocks || []).map((block) =>
-        L.polygon(
-          block.map((point) => [point.lat, point.lng]),
-          {
+      const validBlocks = getValidBlockPolygons(nextBlocks);
+
+      blockLayerRef.current = L.layerGroup(
+        validBlocks.map((block) =>
+          L.polygon(block, {
             className: "canvassing-block",
             color: "#2563eb",
             fillColor: "#2563eb",
             fillOpacity: 0.34,
             opacity: 1,
             weight: 4,
-          }
+          })
         )
-      )
-    ).addTo(map);
+      ).addTo(map);
 
-    const boundsPoints = (nextBlocks || [])
-      .flat()
-      .map((point) => [point.lat, point.lng]);
+      const boundsPoints = validBlocks.flat();
+      const validMarker = toLatLng(nextMarker);
 
-    if (nextMarker) {
-      boundsPoints.push([nextMarker.lat, nextMarker.lng]);
-    }
+      if (validMarker) {
+        boundsPoints.push(validMarker);
+      }
 
-    if (boundsPoints.length) {
-      setTimeout(() => {
+      if (boundsPoints.length) {
+        setTimeout(() => {
+          if (mapRef.current !== map) return;
+
+          const bounds = L.latLngBounds(boundsPoints);
+          if (!bounds.isValid()) return;
+
+          map.invalidateSize();
+          map.fitBounds(bounds, {
+            maxZoom: 16,
+            padding: [56, 56],
+          });
+          markerRef.current?.bringToFront();
+        }, 0);
+      } else if (validMarker) {
         map.invalidateSize();
-        map.fitBounds(L.latLngBounds(boundsPoints), {
-          maxZoom: 16,
-          padding: [56, 56],
-        });
-        markerRef.current?.bringToFront();
-      }, 0);
+        map.setView(validMarker, 17);
+      }
+    } catch (err) {
+      console.error("Map preview redraw failed", err);
     }
   };
 
@@ -64,8 +87,12 @@ export default function DraggablePinMap({ blocks, center, marker, onMarkerChange
       if (disposed || !containerRef.current) return;
       leafletRef.current = L;
 
+      const validCenter = toLatLng(center);
+      const validMarker = toLatLng(marker);
+      if (!validCenter || !validMarker) return;
+
       const map = L.map(containerRef.current, {
-        center: [center.lat, center.lng],
+        center: validCenter,
         zoom: 17,
         scrollWheelZoom: false,
       });
@@ -80,7 +107,7 @@ export default function DraggablePinMap({ blocks, center, marker, onMarkerChange
         iconAnchor: [12, 24],
       });
 
-      const mapMarker = L.marker([marker.lat, marker.lng], {
+      const mapMarker = L.marker(validMarker, {
         draggable: true,
         icon: pinIcon,
         zIndexOffset: 1000,
@@ -119,7 +146,10 @@ export default function DraggablePinMap({ blocks, center, marker, onMarkerChange
   useEffect(() => {
     if (!mapRef.current || !markerRef.current || !marker) return;
 
-    markerRef.current.setLatLng([marker.lat, marker.lng]);
+    const validMarker = toLatLng(marker);
+    if (!validMarker) return;
+
+    markerRef.current.setLatLng(validMarker);
     markerRef.current.bringToFront();
     drawHighlightedBlocks(blocks, marker);
   }, [marker]);

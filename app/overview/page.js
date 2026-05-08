@@ -13,7 +13,12 @@ export default function CompletedOverviewPage() {
   const [entries, setEntries] = useState([]);
 
   useEffect(() => {
-    setEntries(JSON.parse(localStorage.getItem("completedMapPrints") || "[]"));
+    try {
+      const savedEntries = JSON.parse(localStorage.getItem("completedMapPrints") || "[]");
+      setEntries(Array.isArray(savedEntries) ? savedEntries : []);
+    } catch (err) {
+      setEntries([]);
+    }
   }, []);
 
   useEffect(() => {
