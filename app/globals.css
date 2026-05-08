@@ -22,6 +22,7 @@ body {
 .top-actions {
   display: flex;
   justify-content: flex-end;
+  gap: 8px;
   margin-bottom: 12px;
 }
 
@@ -33,10 +34,12 @@ body {
   padding: 7px 10px;
   border: 1px solid #d1d5db;
   border-radius: 8px;
+  background: #fff;
   color: #111;
   font-size: 12px;
   font-weight: 500;
   text-decoration: none;
+  cursor: pointer;
 }
 
 /* ========== CARD ========== */
@@ -208,6 +211,7 @@ select:focus {
 
 .canvassing-block {
   vector-effect: non-scaling-stroke;
+  filter: drop-shadow(0 1px 3px rgba(37, 99, 235, 0.45));
 }
 
 .completed-block {
@@ -354,7 +358,8 @@ select:focus {
   }
 
   .top-actions {
-    justify-content: stretch;
+    display: grid;
+    grid-template-columns: 1fr;
   }
 
   .overview-link {

@@ -26,13 +26,14 @@ export default function DraggablePinMap({ blocks, center, marker, onMarkerChange
             className: "canvassing-block",
             color: "#2563eb",
             fillColor: "#2563eb",
-            fillOpacity: 0.18,
-            opacity: 0.85,
-            weight: 2,
+            fillOpacity: 0.34,
+            opacity: 1,
+            weight: 4,
           }
         )
       )
     ).addTo(map);
+    blockLayerRef.current.bringToFront();
 
     const boundsPoints = (nextBlocks || [])
       .flat()

@@ -29,6 +29,8 @@ const DATA = {
   ],
 };
 
+const SESSION_KEY = "currentMapSession";
+
 function getCompletedEntries() {
   return JSON.parse(localStorage.getItem("completedMapPrints") || "[]");
 }
@@ -50,6 +52,57 @@ export default function Home() {
   const [maps, setMaps] = useState(null);
   const [loadingPin, setLoadingPin] = useState(false);
   const [loadingMaps, setLoadingMaps] = useState(false);
+  const [hydrated, setHydrated] = useState(false);
+
+  useEffect(() => {
+    const saved = JSON.parse(localStorage.getItem(SESSION_KEY) || "null");
+
+    if (saved) {
+      setCity(saved.city || "Daly City, CA");
+      setStreet(saved.street || "");
+      setCount(saved.count || 2);
+      setBlockCount(saved.blockCount || 2);
+      setPinSeed(saved.pinSeed || null);
+      setMapCenter(saved.mapCenter || null);
+      setConfirmedPin(saved.confirmedPin || null);
+      setHighlightedBlocks(saved.highlightedBlocks || []);
+      setBlockWarning(saved.blockWarning || "");
+      setMaps(saved.maps || null);
+    }
+
+    setHydrated(true);
+  }, []);
+
+  useEffect(() => {
+    if (!hydrated) return;
+
+    const session = {
+      blockCount,
+      blockWarning,
+      city,
+      confirmedPin,
+      count,
+      highlightedBlocks,
+      mapCenter,
+      maps,
+      pinSeed,
+      street,
+    };
+
+    localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+  }, [
+    blockCount,
+    blockWarning,
+    city,
+    confirmedPin,
+    count,
+    highlightedBlocks,
+    hydrated,
+    mapCenter,
+    maps,
+    pinSeed,
+    street,
+  ]);
 
   useEffect(() => {
     const sendHeight = () => {
@@ -82,6 +135,15 @@ export default function Home() {
     setHighlightedBlocks([]);
     setBlockWarning("");
     setMaps(null);
+  };
+
+  const startOver = () => {
+    localStorage.removeItem(SESSION_KEY);
+    setCity("Daly City, CA");
+    setStreet("");
+    setCount(2);
+    setBlockCount(2);
+    resetOutput();
   };
 
   const handleMarkerChange = useCallback(async (nextPin) => {
@@ -196,6 +258,9 @@ export default function Home() {
   return (
     <div className="container">
       <div className="top-actions">
+        <button className="overview-link" type="button" onClick={startOver}>
+          Start Over
+        </button>
         <Link className="overview-link" href="/overview">
           Completed Map Overview
         </Link>
